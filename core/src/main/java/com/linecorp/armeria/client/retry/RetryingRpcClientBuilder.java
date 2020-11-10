@@ -31,13 +31,15 @@ public final class RetryingRpcClientBuilder extends AbstractRetryingClientBuilde
         super(retryRuleWithContent);
     }
 
+    RetryingRpcClientBuilder(RetryConfigMapping<RpcResponse> mapping) {
+        super(mapping);
+    }
+
     /**
      * Returns a newly-created {@link RetryingRpcClient} based on the properties of this builder.
      */
     public RetryingRpcClient build(RpcClient delegate) {
-        return new RetryingRpcClient(
-                delegate, retryRuleWithContent(), maxTotalAttempts(),
-                responseTimeoutMillisForEachAttempt());
+        return new RetryingRpcClient(delegate, mapping());
     }
 
     /**

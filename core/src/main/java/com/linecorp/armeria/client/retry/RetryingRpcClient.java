@@ -76,6 +76,17 @@ public final class RetryingRpcClient extends AbstractRetryingClient<RpcRequest, 
     }
 
     /**
+     * Creates a new {@link RpcClient} decorator that handles failures of an invocation and retries
+     * RPC requests.
+     *
+     * @param mapping the mapping that returns a {@link RetryConfig} for a given context/request.
+     */
+    public static Function<? super RpcClient, RetryingRpcClient>
+    newDecorator(RetryConfigMapping<RpcResponse> mapping) {
+        return builder(mapping).newDecorator();
+    }
+
+    /**
      * Returns a new {@link RetryingRpcClientBuilder} with the specified {@link RetryRuleWithContent}.
      */
     public static RetryingRpcClientBuilder builder(RetryRuleWithContent<RpcResponse> retryRuleWithContent) {
@@ -83,11 +94,17 @@ public final class RetryingRpcClient extends AbstractRetryingClient<RpcRequest, 
     }
 
     /**
+     * Returns a new {@link RetryingRpcClientBuilder} with the specified {@link RetryConfigMapping}.
+     */
+    public static RetryingRpcClientBuilder builder(RetryConfigMapping<RpcResponse> mapping) {
+        return new RetryingRpcClientBuilder(mapping);
+    }
+
+    /**
      * Creates a new instance that decorates the specified {@link RpcClient}.
      */
-    RetryingRpcClient(RpcClient delegate, RetryRuleWithContent<RpcResponse> retryRuleWithContent,
-                      int totalMaxAttempts, long responseTimeoutMillisForEachAttempt) {
-        super(delegate, retryRuleWithContent, totalMaxAttempts, responseTimeoutMillisForEachAttempt);
+    RetryingRpcClient(RpcClient delegate, RetryConfigMapping<RpcResponse> mapping) {
+        super(delegate, mapping, null);
     }
 
     @Override
@@ -124,9 +141,13 @@ public final class RetryingRpcClient extends AbstractRetryingClient<RpcRequest, 
         final RpcResponse res = executeWithFallback(unwrap(), derivedCtx,
                                                     (context, cause) -> RpcResponse.ofFailure(cause));
 
+        final RetryConfig<RpcResponse> retryConfig = mapping().get(ctx, req);
+        final RetryRuleWithContent<RpcResponse> retryRule =
+                retryConfig.needsContentInRule() ?
+                retryConfig.retryRuleWithContent() : RetryRuleUtil.fromRetryRule(retryConfig.retryRule());
         res.handle((unused1, cause) -> {
             try {
-                retryRuleWithContent().shouldRetry(derivedCtx, res, cause).handle((decision, unused3) -> {
+                retryRule.shouldRetry(derivedCtx, res, cause).handle((decision, unused3) -> {
                     final Backoff backoff = decision != null ? decision.backoff() : null;
                     if (backoff != null) {
                         final long nextDelay = getNextDelay(derivedCtx, backoff);

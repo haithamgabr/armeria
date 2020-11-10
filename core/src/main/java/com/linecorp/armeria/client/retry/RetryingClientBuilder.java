@@ -19,8 +19,6 @@ package com.linecorp.armeria.client.retry;
 import java.time.Duration;
 import java.util.function.Function;
 
-import com.google.common.base.MoreObjects.ToStringHelper;
-
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.common.HttpResponse;
 
@@ -29,20 +27,13 @@ import com.linecorp.armeria.common.HttpResponse;
  */
 public final class RetryingClientBuilder extends AbstractRetryingClientBuilder<HttpResponse> {
 
-    private static final int DEFAULT_MAX_CONTENT_LENGTH = Integer.MAX_VALUE;
-
     private boolean useRetryAfter;
-
-    private int maxContentLength = DEFAULT_MAX_CONTENT_LENGTH;
-    private final boolean needsContentInRule;
 
     /**
      * Creates a new builder with the specified {@link RetryRule}.
      */
     RetryingClientBuilder(RetryRule retryRule) {
         super(retryRule);
-        needsContentInRule = false;
-        maxContentLength = 0;
     }
 
     /**
@@ -50,16 +41,21 @@ public final class RetryingClientBuilder extends AbstractRetryingClientBuilder<H
      */
     RetryingClientBuilder(RetryRuleWithContent<HttpResponse> retryRuleWithContent) {
         super(retryRuleWithContent);
-        needsContentInRule = true;
     }
 
     /**
-     * Creates a new builder with the specified {@link RetryRuleWithContent}.
+     * Creates a new builder with the specified {@link RetryRuleWithContent} and maxContentLength.
      */
     RetryingClientBuilder(RetryRuleWithContent<HttpResponse> retryRuleWithContent, int maxContentLength) {
         super(retryRuleWithContent);
-        needsContentInRule = true;
-        this.maxContentLength = maxContentLength;
+        maxContentLength(maxContentLength);
+    }
+
+    /**
+     * Creates a new builder with the specified {@link RetryConfigMapping}.
+     */
+    RetryingClientBuilder(RetryConfigMapping<HttpResponse> mapping) {
+        super(mapping);
     }
 
     /**
@@ -81,13 +77,7 @@ public final class RetryingClientBuilder extends AbstractRetryingClientBuilder<H
      * Returns a newly-created {@link RetryingClient} based on the properties of this builder.
      */
     public RetryingClient build(HttpClient delegate) {
-        if (needsContentInRule) {
-            return new RetryingClient(delegate, retryRuleWithContent(), maxTotalAttempts(),
-                                      responseTimeoutMillisForEachAttempt(), useRetryAfter, maxContentLength);
-        }
-
-        return new RetryingClient(delegate, retryRule(), maxTotalAttempts(),
-                                  responseTimeoutMillisForEachAttempt(), useRetryAfter);
+        return new RetryingClient(delegate, mapping(), retryConfig(), useRetryAfter);
     }
 
     /**
@@ -100,11 +90,7 @@ public final class RetryingClientBuilder extends AbstractRetryingClientBuilder<H
 
     @Override
     public String toString() {
-        final ToStringHelper stringHelper = toStringHelper().add("useRetryAfter", useRetryAfter);
-        if (needsContentInRule) {
-            stringHelper.add("maxContentLength", maxContentLength);
-        }
-        return stringHelper.toString();
+        return toStringHelper().add("useRetryAfter", useRetryAfter).toString();
     }
 
     // Methods that were overridden to change the return type.
