@@ -49,15 +49,21 @@ public final class RetryConfig<T extends Response> {
 
     private final int maxTotalAttempts;
     private final long responseTimeoutMillisForEachAttempt;
-    @Nullable private final RetryRule retryRule;
-    @Nullable private final RetryRuleWithContent<T> retryRuleWithContent;
-    @Nullable private final RetryRule fromRetryRuleWithContent;
     private final int maxContentLength;
     private final boolean needsContentInRule;
 
+    @Nullable
+    private final RetryRule retryRule;
+
+    @Nullable
+    private final RetryRuleWithContent<T> retryRuleWithContent;
+
+    @Nullable
+    private final RetryRule fromRetryRuleWithContent;
+
     RetryConfig(RetryRule retryRule, int maxTotalAttempts, long responseTimeoutMillisForEachAttempt) {
         checkArguments(maxTotalAttempts, responseTimeoutMillisForEachAttempt);
-        this.retryRule = requireNonNull(retryRule);
+        this.retryRule = requireNonNull(retryRule, "retryRule");
         this.maxTotalAttempts = maxTotalAttempts;
         this.responseTimeoutMillisForEachAttempt = responseTimeoutMillisForEachAttempt;
         needsContentInRule = false;
@@ -73,7 +79,7 @@ public final class RetryConfig<T extends Response> {
             long responseTimeoutMillisForEachAttempt) {
         checkArguments(maxTotalAttempts, responseTimeoutMillisForEachAttempt);
         this.maxContentLength = maxContentLength;
-        this.retryRuleWithContent = requireNonNull(retryRuleWithContent);
+        this.retryRuleWithContent = requireNonNull(retryRuleWithContent, "retryRuleWithContent");
         fromRetryRuleWithContent = RetryRuleUtil.fromRetryRuleWithContent(retryRuleWithContent);
         this.maxTotalAttempts = maxTotalAttempts;
         this.responseTimeoutMillisForEachAttempt = responseTimeoutMillisForEachAttempt;
@@ -90,6 +96,18 @@ public final class RetryConfig<T extends Response> {
                 responseTimeoutMillisForEachAttempt >= 0,
                 "responseTimeoutMillisForEachAttempt: %s (expected: >= 0)",
                 responseTimeoutMillisForEachAttempt);
+    }
+
+    /**
+     * Converts this {@link RetryConfig} to a mutable {@link RetryConfigBuilder}.
+     */
+    public RetryConfigBuilder<T> toBuilder() {
+        final RetryConfigBuilder<T> builder =
+                needsContentInRule ?
+                builder(retryRuleWithContent).maxContentLength(maxContentLength) : builder(retryRule);
+        return builder
+                .maxTotalAttempts(maxTotalAttempts)
+                .responseTimeoutMillisForEachAttempt(responseTimeoutMillisForEachAttempt);
     }
 
     /**
@@ -125,15 +143,6 @@ public final class RetryConfig<T extends Response> {
     }
 
     /**
-     * Returns the {@link RetryRuleWithContent} converted from the {@link RetryRule} of this config,
-     * could be null.
-     */
-    @Nullable
-    public RetryRule fromRetryRuleWithContent() {
-        return fromRetryRuleWithContent;
-    }
-
-    /**
      * Returns config's {@code maxContentLength}, which is non-zero only if
      * a {@link RetryRuleWithContent} is used.
      */
@@ -155,5 +164,14 @@ public final class RetryConfig<T extends Response> {
     public boolean requiresResponseTrailers() {
         return needsContentInRule() ?
                retryRuleWithContent().requiresResponseTrailers() : retryRule().requiresResponseTrailers();
+    }
+
+    /**
+     * Returns the {@link RetryRuleWithContent} converted from the {@link RetryRule} of this config,
+     * could be null.
+     */
+    @Nullable
+    RetryRule fromRetryRuleWithContent() {
+        return fromRetryRuleWithContent;
     }
 }
